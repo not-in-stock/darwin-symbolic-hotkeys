@@ -313,8 +313,8 @@ let
   keycodes = pkgs.darwin-symbolic-hotkeys.keycodes;
 in
 {
-  # Key code for 'L'
-  lKeyCode = keycodes.keyCodes.l;  # 37
+  # Key entry for 'L' contains both ascii and keyCode
+  lKey = keycodes.keys.l;  # { ascii = 108; keyCode = 37; }
 
   # Modifier for Command
   cmdMod = keycodes.modifiers.cmd;  # 1048576
