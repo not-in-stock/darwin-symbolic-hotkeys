@@ -32,7 +32,7 @@
         in
         {
           shortcuts = import ./lib/shortcuts.nix { inherit (pkgs) lib; };
-          keycodes = import ./lib/keycodes.nix;
+          keycodes = import ./lib/keycodes.nix { inherit (pkgs) lib; };
           shortcutData = builtins.fromJSON (builtins.readFile ./data/symbolic-hotkeys.json);
         }
       );
@@ -41,7 +41,7 @@
       overlays.default = final: prev: {
         darwin-symbolic-hotkeys = {
           shortcuts = import ./lib/shortcuts.nix { lib = final.lib; };
-          keycodes = import ./lib/keycodes.nix;
+          keycodes = import ./lib/keycodes.nix { lib = final.lib; };
           shortcutData = builtins.fromJSON (builtins.readFile ./data/symbolic-hotkeys.json);
         };
       };

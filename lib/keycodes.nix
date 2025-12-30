@@ -10,165 +10,143 @@
 #   - Command: bit 20 (1048576)
 #   - Fn:      bit 23 (8388608)
 
-{
-  # Mapping table for characters to ASCII codes (lowercase)
-  # Used for the first parameter in symbolic hotkey values
-  asciiCodes = {
-    a = 97;
-    b = 98;
-    c = 99;
-    d = 100;
-    e = 101;
-    f = 102;
-    g = 103;
-    h = 104;
-    i = 105;
-    j = 106;
-    k = 107;
-    l = 108;
-    m = 109;
-    n = 110;
-    o = 111;
-    p = 112;
-    q = 113;
-    r = 114;
-    s = 115;
-    t = 116;
-    u = 117;
-    v = 118;
-    w = 119;
-    x = 120;
-    y = 121;
-    z = 122;
+{ lib ? import <nixpkgs/lib> }:
 
-    # For digits and special characters use 65535 (0xFFFF)
-    "0" = 65535;
-    "1" = 65535;
-    "2" = 65535;
-    "3" = 65535;
-    "4" = 65535;
-    "5" = 65535;
-    "6" = 65535;
-    "7" = 65535;
-    "8" = 65535;
-    "9" = 65535;
+let
+  # Helper to create a key entry with both ASCII and keyCode
+  mkKey = ascii: keyCode: { inherit ascii keyCode; };
 
-    # Special keys also use 65535
-    space = 32;
-    none = 65535;
-  };
+  # For letters: ASCII is the lowercase letter code
+  mkLetter = char: keyCode: mkKey char keyCode;
 
-  # Mapping table for characters to macOS virtual key codes
-  # Used for the second parameter in symbolic hotkey values
-  keyCodes = {
-    # Letters (QWERTY layout)
-    a = 0;
-    s = 1;
-    d = 2;
-    f = 3;
-    h = 4;
-    g = 5;
-    z = 6;
-    x = 7;
-    c = 8;
-    v = 9;
-    b = 11;
-    q = 12;
-    w = 13;
-    e = 14;
-    r = 15;
-    y = 16;
-    t = 17;
-    o = 31;
-    u = 32;
-    i = 34;
-    p = 35;
-    l = 37;
-    j = 38;
-    k = 40;
-    n = 45;
-    m = 46;
+  # For non-letter keys: ASCII is 65535 (0xFFFF)
+  mkSpecial = keyCode: mkKey 65535 keyCode;
 
-    # Numbers (top row)
-    "1" = 18;
-    "2" = 19;
-    "3" = 20;
-    "4" = 21;
-    "5" = 23;
-    "6" = 22;
-    "7" = 26;
-    "8" = 28;
-    "9" = 25;
-    "0" = 29;
+  # Keys defined here, used to generate keyCodeNames
+  keys = {
+    # Letters (QWERTY layout) - ASCII is the lowercase letter code
+    a = mkLetter 97 0;
+    b = mkLetter 98 11;
+    c = mkLetter 99 8;
+    d = mkLetter 100 2;
+    e = mkLetter 101 14;
+    f = mkLetter 102 3;
+    g = mkLetter 103 5;
+    h = mkLetter 104 4;
+    i = mkLetter 105 34;
+    j = mkLetter 106 38;
+    k = mkLetter 107 40;
+    l = mkLetter 108 37;
+    m = mkLetter 109 46;
+    n = mkLetter 110 45;
+    o = mkLetter 111 31;
+    p = mkLetter 112 35;
+    q = mkLetter 113 12;
+    r = mkLetter 114 15;
+    s = mkLetter 115 1;
+    t = mkLetter 116 17;
+    u = mkLetter 117 32;
+    v = mkLetter 118 9;
+    w = mkLetter 119 13;
+    x = mkLetter 120 7;
+    y = mkLetter 121 16;
+    z = mkLetter 122 6;
+
+    # Numbers (top row) - ASCII is 65535
+    "0" = mkSpecial 29;
+    "1" = mkSpecial 18;
+    "2" = mkSpecial 19;
+    "3" = mkSpecial 20;
+    "4" = mkSpecial 21;
+    "5" = mkSpecial 23;
+    "6" = mkSpecial 22;
+    "7" = mkSpecial 26;
+    "8" = mkSpecial 28;
+    "9" = mkSpecial 25;
 
     # Special keys
-    space = 49;
-    return = 36;
-    enter = 36;
-    tab = 48;
-    delete = 51;
-    backspace = 51;
-    escape = 53;
-    esc = 53;
+    space = mkKey 32 49; # Space has ASCII 32
+    return = mkSpecial 36;
+    enter = mkSpecial 36; # alias for return
+    tab = mkSpecial 48;
+    delete = mkSpecial 51;
+    backspace = mkSpecial 51; # alias for delete
+    escape = mkSpecial 53;
+    esc = mkSpecial 53; # alias for escape
+    none = mkKey 65535 65535; # No key
 
     # Punctuation
-    minus = 27;
-    equal = 24;
-    equals = 24;
-    leftBracket = 33;
-    rightBracket = 30;
-    backslash = 42;
-    semicolon = 41;
-    quote = 39;
-    grave = 50;
-    backtick = 50;
-    comma = 43;
-    period = 47;
-    slash = 44;
+    minus = mkSpecial 27;
+    equal = mkSpecial 24;
+    equals = mkSpecial 24; # alias for equal
+    leftBracket = mkSpecial 33;
+    rightBracket = mkSpecial 30;
+    backslash = mkSpecial 42;
+    semicolon = mkSpecial 41;
+    quote = mkSpecial 39;
+    grave = mkSpecial 50;
+    backtick = mkSpecial 50; # alias for grave
+    comma = mkSpecial 43;
+    period = mkSpecial 47;
+    slash = mkSpecial 44;
 
     # Arrow keys
-    left = 123;
-    right = 124;
-    down = 125;
-    up = 126;
+    left = mkSpecial 123;
+    right = mkSpecial 124;
+    down = mkSpecial 125;
+    up = mkSpecial 126;
 
     # Function keys
-    f1 = 122;
-    f2 = 120;
-    f3 = 99;
-    f4 = 118;
-    f5 = 96;
-    f6 = 97;
-    f7 = 98;
-    f8 = 100;
-    f9 = 101;
-    f10 = 109;
-    f11 = 103;
-    f12 = 111;
-    f13 = 105;
-    f14 = 107;
-    f15 = 113;
-    f16 = 106;
-    f17 = 64;
-    f18 = 79;
-    f19 = 80;
-    f20 = 90;
+    f1 = mkSpecial 122;
+    f2 = mkSpecial 120;
+    f3 = mkSpecial 99;
+    f4 = mkSpecial 118;
+    f5 = mkSpecial 96;
+    f6 = mkSpecial 97;
+    f7 = mkSpecial 98;
+    f8 = mkSpecial 100;
+    f9 = mkSpecial 101;
+    f10 = mkSpecial 109;
+    f11 = mkSpecial 103;
+    f12 = mkSpecial 111;
+    f13 = mkSpecial 105;
+    f14 = mkSpecial 107;
+    f15 = mkSpecial 113;
+    f16 = mkSpecial 106;
+    f17 = mkSpecial 64;
+    f18 = mkSpecial 79;
+    f19 = mkSpecial 80;
+    f20 = mkSpecial 90;
 
     # Navigation keys
-    home = 115;
-    end = 119;
-    pageUp = 116;
-    pageDown = 121;
+    home = mkSpecial 115;
+    end = mkSpecial 119;
+    pageUp = mkSpecial 116;
+    pageDown = mkSpecial 121;
 
     # Other special keys
-    forwardDelete = 117;
-    help = 114;
+    forwardDelete = mkSpecial 117;
+    help = mkSpecial 114;
 
     # Media keys (may vary)
-    volumeUp = 72;
-    volumeDown = 73;
-    mute = 74;
+    volumeUp = mkSpecial 72;
+    volumeDown = mkSpecial 73;
+    mute = mkSpecial 74;
   };
+
+  # Generate reverse lookup from keys
+  # Filters out aliases (keys with same keyCode) keeping first occurrence
+  keyCodeNames = lib.foldlAttrs (
+    acc: name: value:
+    let
+      code = toString value.keyCode;
+    in
+    if acc ? ${code} then acc else acc // { ${code} = name; }
+  ) { } keys;
+
+in
+{
+  inherit keys keyCodeNames;
 
   # Modifier key values (bits 17-20, 23)
   # These can be combined by adding them together
@@ -186,66 +164,5 @@
 
     # Common combinations
     none = 0;
-  };
-
-  # Reverse lookup: keyCode -> key name (for debugging/display)
-  keyCodeNames = {
-    "0" = "a";
-    "1" = "s";
-    "2" = "d";
-    "3" = "f";
-    "4" = "h";
-    "5" = "g";
-    "6" = "z";
-    "7" = "x";
-    "8" = "c";
-    "9" = "v";
-    "11" = "b";
-    "12" = "q";
-    "13" = "w";
-    "14" = "e";
-    "15" = "r";
-    "16" = "y";
-    "17" = "t";
-    "18" = "1";
-    "19" = "2";
-    "20" = "3";
-    "21" = "4";
-    "22" = "6";
-    "23" = "5";
-    "25" = "9";
-    "26" = "7";
-    "28" = "8";
-    "29" = "0";
-    "31" = "o";
-    "32" = "u";
-    "34" = "i";
-    "35" = "p";
-    "37" = "l";
-    "38" = "j";
-    "40" = "k";
-    "45" = "n";
-    "46" = "m";
-    "49" = "space";
-    "36" = "return";
-    "48" = "tab";
-    "51" = "delete";
-    "53" = "escape";
-    "123" = "left";
-    "124" = "right";
-    "125" = "down";
-    "126" = "up";
-    "122" = "f1";
-    "120" = "f2";
-    "99" = "f3";
-    "118" = "f4";
-    "96" = "f5";
-    "97" = "f6";
-    "98" = "f7";
-    "100" = "f8";
-    "101" = "f9";
-    "109" = "f10";
-    "103" = "f11";
-    "111" = "f12";
   };
 }

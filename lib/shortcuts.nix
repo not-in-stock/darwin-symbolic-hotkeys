@@ -6,8 +6,11 @@
 { lib }:
 
 let
-  keycodes = import ./keycodes.nix;
-  inherit (keycodes) asciiCodes keyCodes modifiers;
+  keycodes = import ./keycodes.nix { inherit lib; };
+  inherit (keycodes) keys modifiers;
+
+  # Default key for unknown characters
+  defaultKey = { ascii = 65535; keyCode = 0; };
 
   # Parser for strings like "ctrl+cmd+l" or "ctrl + cmd + l"
   parseShortcut =
@@ -26,13 +29,12 @@ let
       # Calculate sum of modifiers
       modifierSum = lib.foldl (acc: mod: acc + (modifiers.${mod} or 0)) 0 modParts;
 
-      # Get ASCII code and key code
-      asciiCode = asciiCodes.${keyChar} or 65535;
-      keyCode = keyCodes.${keyChar} or 0;
+      # Get key entry with both ASCII and keyCode
+      key = keys.${keyChar} or defaultKey;
     in
     [
-      asciiCode
-      keyCode
+      key.ascii
+      key.keyCode
       modifierSum
     ];
 
