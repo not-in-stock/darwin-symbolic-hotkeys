@@ -24,9 +24,9 @@ system.defaults.CustomUserPreferences = {
 
 ```nix
 darwin.symbolicHotkeys = {
-  exposeAndSpaces.spaces.moveToPreviousSpace = {
+  missionControl.missionControlGroup.moveLeftASpace = {
     enable = true;
-    shortcut = "ctrl+left";
+  shortcut = "ctrl+left";
   };
 };
 ```
@@ -66,9 +66,9 @@ Add to your `flake.nix`:
 
 {
   darwin.symbolicHotkeys = {
-    # Mission Control (Expose and Spaces)
-    exposeAndSpaces = {
-      allWindows = {
+    # Mission Control
+    missionControl = {
+      missionControl = {
         enable = true;
         shortcut = "ctrl+up";
       };
@@ -76,23 +76,34 @@ Add to your `flake.nix`:
         enable = true;
         shortcut = "ctrl+down";
       };
-      
-      # Spaces subgroup
-      spaces = {
-        moveToPreviousSpace = {
+
+      # Mission Control subgroup (spaces navigation)
+      missionControlGroup = {
+        moveLeftASpace = {
           enable = true;
           shortcut = "ctrl+left";
         };
-        moveToNextSpace = {
+        moveRightASpace = {
           enable = true;
           shortcut = "ctrl+right";
         };
+
+        # Switch to specific desktops (dynamically created by macOS)
+        switchToDesktop1 = {
+          enable = true;
+          shortcut = "ctrl+1";
+        };
+        switchToDesktop2 = {
+          enable = true;
+          shortcut = "ctrl+2";
+        };
+        # ... up to switchToDesktop16
       };
     };
-    
+
     # Window management (macOS 15+)
     windows = {
-      halves = {
+      halvesGroup = {
         tileLeftHalf = {
           enable = true;
           shortcut = "fn+ctrl+opt+cmd+left";
@@ -103,7 +114,7 @@ Add to your `flake.nix`:
         };
       };
     };
-    
+
     # Screenshots
     screenshots = {
       savePictureOfScreenAsAFile = {
@@ -115,7 +126,7 @@ Add to your `flake.nix`:
         shortcut = "shift+cmd+4";
       };
     };
-    
+
     # Spotlight
     spotlight = {
       showSpotlightSearch = {
@@ -160,30 +171,45 @@ modifier1+modifier2+key
 
 The module provides options for the following categories:
 
-| Category | Description |
-|----------|-------------|
-| `dashboardAndDock` | Launchpad & Dock |
-| `display` | Display brightness |
-| `exposeAndSpaces` | Mission Control |
-| `windows` | Window management (tiling) |
-| `keyboardInput` | Keyboard navigation |
-| `inputSources` | Input source switching |
-| `screenshots` | Screenshot shortcuts |
-| `presenterOverlay` | Presenter overlay |
-| `services` | Services menu |
-| `spotlight` | Spotlight search |
-| `universalAccess` | Accessibility |
-| `applicationShortcuts` | App shortcuts |
+| Category | macOS Settings Name | Subgroups |
+|----------|---------------------|-----------|
+| `launchpadDock` | Launchpad & Dock | - |
+| `display` | Display | - |
+| `missionControl` | Mission Control | `missionControlGroup` |
+| `windows` | Windows | `generalGroup`, `halvesGroup`, `quartersGroup`, `arrangeGroup`, `fullScreenTileGroup` |
+| `keyboard` | Keyboard | - |
+| `inputSources` | Input Sources | - |
+| `screenshots` | Screenshots | - |
+| `presenterOverlay` | Presenter Overlay | - |
+| `services` | Services | - |
+| `spotlight` | Spotlight | - |
+| `accessibility` | Accessibility | `contrastGroup`, `liveCaptionsGroup`, `liveSpeechGroup`, `zoomGroup` |
+| `appShortcuts` | App Shortcuts | `allApplicationsGroup` |
 
 ## Finding Shortcut Names
 
-To see all available shortcuts, you can inspect the generated JSON:
+### Option 1: View the shortcuts tree
+
+Generate a human-readable tree of all available shortcuts:
+
+```bash
+# Plain text format
+python3 scripts/generate-tree.py
+
+# Markdown format (save to file)
+python3 scripts/generate-tree.py --format markdown --output SHORTCUTS_TREE.md
+
+# Without IDs or dynamic markers
+python3 scripts/generate-tree.py --no-ids --no-dynamic
+```
+
+### Option 2: Inspect the JSON directly
 
 ```bash
 cat /path/to/darwin-symbolic-hotkeys/data/symbolic-hotkeys.json | jq
 ```
 
-Or use `nix repl`:
+### Option 3: Use nix repl
 
 ```bash
 nix repl
@@ -191,29 +217,69 @@ nix repl
 lib.aarch64-darwin.shortcutData.categories
 ```
 
+## Dynamic Shortcuts
+
+Some shortcuts are dynamically created by macOS and don't appear in system configuration files. These include:
+
+### Desktop Switching (IDs 118-133)
+
+These shortcuts allow switching to specific Mission Control desktops:
+
+- **Desktop 1-10** (IDs 118-127): Use `Ctrl+1` through `Ctrl+0`
+- **Desktop 11-16** (IDs 128-133): Use `Shift+Ctrl+1` through `Shift+Ctrl+6`
+
+Example configuration:
+
+```nix
+darwin.symbolicHotkeys.missionControl.missionControlGroup = {
+  switchToDesktop1.enable = true;  # Ctrl+1
+  switchToDesktop2.enable = true;  # Ctrl+2
+  switchToDesktop11.enable = true; # Shift+Ctrl+1
+};
+```
+
+**Note**: These shortcuts are included in the module based on empirical evidence from the macOS system. They only become active in macOS when you have created the corresponding number of Mission Control spaces.
+
 ## How It Works
 
-1. **Data Source**: Shortcut definitions are extracted from macOS system files (`DefaultShortcutsTable.xml`)
-2. **JSON Generation**: A Python script parses the XML and generates structured JSON
-3. **Nix Options**: The module dynamically creates Nix options from the JSON data
-4. **Shortcut Parsing**: Human-readable shortcut strings are converted to macOS parameters
-5. **Configuration**: Enabled shortcuts are written to `com.apple.symbolichotkeys` preferences
+1. **Data Source**: Shortcut definitions are extracted from macOS system files:
+   - `DefaultShortcutsTable.xml` - shortcut IDs, key codes, and modifiers
+   - `DefaultShortcutsTable.loctable` - localized display names
+2. **JSON Generation**: A Python script parses the XML and applies localization to generate structured JSON
+3. **Dynamic Shortcuts**: Desktop switching shortcuts (IDs 118-133) are added programmatically as they don't exist in system files but are dynamically created by macOS
+4. **Nix Options**: The module dynamically creates Nix options from the JSON data
+5. **Shortcut Parsing**: Human-readable shortcut strings are converted to macOS parameters
+6. **Configuration**: Enabled shortcuts are written to `com.apple.symbolichotkeys` preferences
+
+The option names use localized names from macOS System Settings for better discoverability.
 
 ## Updating for New macOS Versions
 
-If Apple adds new shortcuts in a macOS update:
+If Apple adds new shortcuts in a macOS update, you can update the data using the provided script:
 
-1. Copy the new XML:
-   ```bash
-   cp /System/Library/ExtensionKit/Extensions/KeyboardSettings.appex/Contents/Resources/en.lproj/DefaultShortcutsTable.xml data/
-   ```
+```bash
+./scripts/update-data.sh
+```
 
-2. Regenerate the JSON:
-   ```bash
-   python3 scripts/parse-shortcuts.py
-   ```
+This will:
+1. Copy the new `DefaultShortcutsTable.xml` from the system
+2. Extract updated localization from `DefaultShortcutsTable.loctable`
+3. Regenerate `symbolic-hotkeys.json` with localized names
 
-3. The new shortcuts will automatically be available as Nix options
+Alternatively, you can update manually:
+
+```bash
+# Copy XML
+cp /System/Library/ExtensionKit/Extensions/KeyboardSettings.appex/Contents/Resources/en.lproj/DefaultShortcutsTable.xml data/
+
+# Extract localization
+plutil -convert json -o - /System/Library/ExtensionKit/Extensions/KeyboardSettings.appex/Contents/Resources/DefaultShortcutsTable.loctable | jq '.en' > data/localization.json
+
+# Regenerate JSON
+python3 scripts/parse-shortcuts.py
+```
+
+The new shortcuts will automatically be available as Nix options with proper localized names.
 
 ## Advanced Usage
 
