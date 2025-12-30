@@ -5,6 +5,8 @@ Parse macOS DefaultShortcutsTable.xml and generate symbolic-hotkeys.json
 This script extracts shortcut definitions from the macOS keyboard settings XML
 and generates a structured JSON file for use in the Nix module.
 
+Localization is applied from the DefaultShortcutsTable.loctable file.
+
 Usage:
     python parse-shortcuts.py
 
@@ -16,7 +18,7 @@ import json
 import plistlib
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 
 def to_camel_case(s: str) -> str:
@@ -29,7 +31,7 @@ def to_camel_case(s: str) -> str:
     s = re.sub(r'\s*\(window management\)$', '', s)
 
     # Replace special characters with spaces
-    s = re.sub(r'[/\-]', ' ', s)
+    s = re.sub(r'[/\-&]', ' ', s)
 
     # Split into words
     words = s.split()
@@ -53,7 +55,14 @@ def clean_name(s: str) -> str:
     return re.sub(r'^DO_NOT_LOCALIZE:\s*', '', s)
 
 
-def parse_shortcut_element(element: dict) -> dict | None:
+def localize(name: str, localization: Dict[str, str]) -> str:
+    """Get localized name, falling back to cleaned name if not found."""
+    # Try to find localization (without DO_NOT_LOCALIZE prefix)
+    clean = clean_name(name)
+    return localization.get(clean, clean)
+
+
+def parse_shortcut_element(element: dict, localization: Dict[str, str]) -> dict | None:
     """Parse a single shortcut element from the XML."""
     name = element.get('name', '')
     if not name:
@@ -70,13 +79,17 @@ def parse_shortcut_element(element: dict) -> dict | None:
         # Check for nested elements (subgroups)
         nested = element.get('elements', [])
         if nested:
-            return parse_group(element)
+            return parse_group(element, localization)
         return None
+
+    # Get localized name and generate nixName from it
+    localized_name = localize(name, localization)
 
     result = {
         'id': hotkey_id,
-        'name': clean_name(name),
-        'nixName': to_camel_case(name),
+        'name': localized_name,
+        'nixName': to_camel_case(localized_name),
+        'originalName': clean_name(name),  # Keep original for reference
     }
 
     # Add default key and modifier if present
@@ -102,7 +115,7 @@ def parse_shortcut_element(element: dict) -> dict | None:
     return result
 
 
-def parse_group(group: dict) -> dict | None:
+def parse_group(group: dict, localization: Dict[str, str]) -> dict | None:
     """Parse a group (subgroup) of shortcuts."""
     name = group.get('name', '')
     if not name:
@@ -114,7 +127,7 @@ def parse_group(group: dict) -> dict | None:
 
     shortcuts = {}
     for elem in elements:
-        parsed = parse_shortcut_element(elem)
+        parsed = parse_shortcut_element(elem, localization)
         if parsed:
             if 'shortcuts' in parsed:
                 # This is a nested group
@@ -129,15 +142,19 @@ def parse_group(group: dict) -> dict | None:
     if not shortcuts:
         return None
 
+    # Get localized name and generate nixName from it
+    localized_name = localize(name, localization)
+
     return {
-        'name': clean_name(name),
-        'nixName': to_camel_case(name),
+        'name': localized_name,
+        'nixName': to_camel_case(localized_name),
+        'originalName': clean_name(name),  # Keep original for reference
         'identifier': group.get('identifier', ''),
         'shortcuts': shortcuts,
     }
 
 
-def parse_category(category: dict) -> dict | None:
+def parse_category(category: dict, localization: Dict[str, str]) -> dict | None:
     """Parse a top-level category from the XML."""
     name = category.get('name', '')
     identifier = category.get('identifier', '')
@@ -149,24 +166,32 @@ def parse_category(category: dict) -> dict | None:
     shortcuts = {}
     subgroups = {}
 
+    # Get localized name and nixName for category
+    localized_name = localize(name, localization)
+    category_nix_name = to_camel_case(localized_name)
+
     for elem in elements:
         # Check if this is a subgroup (has nested elements but no sybmolichotkey)
         if 'elements' in elem and 'sybmolichotkey' not in elem:
-            parsed = parse_group(elem)
+            parsed = parse_group(elem, localization)
             if parsed:
                 nix_name = parsed.get('nixName', '')
-                if nix_name:
-                    subgroups[nix_name] = parsed
+                # Add "Group" suffix to all subgroups to avoid conflicts
+                nix_name_with_suffix = nix_name + 'Group'
+                parsed['nixName'] = nix_name_with_suffix
+                if nix_name_with_suffix:
+                    subgroups[nix_name_with_suffix] = parsed
         else:
-            parsed = parse_shortcut_element(elem)
+            parsed = parse_shortcut_element(elem, localization)
             if parsed and 'id' in parsed:
                 nix_name = parsed.get('nixName', '')
                 if nix_name:
                     shortcuts[nix_name] = parsed
 
     result = {
-        'name': clean_name(name),
-        'nixName': to_camel_case(name),
+        'name': localized_name,
+        'nixName': category_nix_name,
+        'originalName': clean_name(name),  # Keep original for reference
         'identifier': identifier,
     }
 
@@ -178,11 +203,86 @@ def parse_category(category: dict) -> dict | None:
     return result
 
 
+def add_desktop_switching_shortcuts(categories: dict, localization: dict):
+    """
+    Add desktop switching shortcuts (118-133) which are not in XML but exist in system.
+
+    These shortcuts are dynamically created by macOS when Mission Control spaces are configured.
+    They appear in user preferences but not in system default files.
+
+    Based on empirical evidence:
+    - IDs 118-127: Switch to Desktop 1-10 (Ctrl+1 through Ctrl+0)
+    - IDs 128-133: Switch to Desktop 11-16 (Shift+Ctrl+1 through Shift+Ctrl+6)
+    """
+
+    if 'missionControl' not in categories:
+        print("Warning: missionControl category not found, skipping desktop switching shortcuts")
+        return
+
+    # Ensure subgroups exist
+    if 'subgroups' not in categories['missionControl']:
+        categories['missionControl']['subgroups'] = {}
+
+    if 'missionControlGroup' not in categories['missionControl']['subgroups']:
+        categories['missionControl']['subgroups']['missionControlGroup'] = {
+            'name': 'Mission Control',
+            'nixName': 'missionControlGroup',
+            'originalName': 'Spaces',
+            'identifier': 'workspaces',
+            'shortcuts': {}
+        }
+
+    subgroup = categories['missionControl']['subgroups']['missionControlGroup']['shortcuts']
+
+    # Add Switch to Desktop 1-10 (IDs 118-127)
+    # Key codes: 1=18, 2=19, 3=20, 4=21, 5=23, 6=22, 7=26, 8=28, 9=25, 0=29
+    key_codes = {1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25, 10: 29}
+
+    for i in range(1, 11):
+        id_num = 117 + i
+        original_name = f"Switch to Space {i}"
+        localized_name = localization.get(original_name, f"Switch to Desktop {i}")
+
+        subgroup[f'switchToDesktop{i}'] = {
+            'id': id_num,
+            'name': localized_name,
+            'nixName': f'switchToDesktop{i}',
+            'originalName': original_name,
+            'defaultKey': 65535,  # 0xFFFF
+            'defaultModifier': 262144,  # Control
+            'defaultCharKey': key_codes[i],
+            'dynamic': True  # Mark as dynamically created by system
+        }
+
+    # Add Switch to Desktop 11-16 (IDs 128-133)
+    # These use Shift+Control and key codes for 1-6
+    for i in range(11, 17):
+        id_num = 117 + i
+        key_num = 18 + (i - 11)  # Key codes: 1=18, 2=19, 3=20, 4=21, 5=23, 6=22
+        if i == 16:
+            key_num = 22  # Special case for 6
+
+        original_name = f"Switch to Space {i}"
+        localized_name = localization.get(original_name, f"Switch to Desktop {i}")
+
+        subgroup[f'switchToDesktop{i}'] = {
+            'id': id_num,
+            'name': localized_name,
+            'nixName': f'switchToDesktop{i}',
+            'originalName': original_name,
+            'defaultKey': 65535,
+            'defaultModifier': 786432,  # Shift+Control (131072 + 262144)
+            'defaultCharKey': key_num,
+            'dynamic': True
+        }
+
+
 def main():
     script_dir = Path(__file__).parent
     data_dir = script_dir.parent / 'data'
 
     xml_path = data_dir / 'DefaultShortcutsTable.xml'
+    localization_path = data_dir / 'localization.json'
     output_path = data_dir / 'symbolic-hotkeys.json'
 
     if not xml_path.exists():
@@ -191,6 +291,17 @@ def main():
         print("/System/Library/ExtensionKit/Extensions/KeyboardSettings.appex/Contents/Resources/en.lproj/DefaultShortcutsTable.xml")
         return 1
 
+    # Load localization if available
+    localization = {}
+    if localization_path.exists():
+        with open(localization_path, 'r') as f:
+            localization = json.load(f)
+        print(f"Loaded {len(localization)} localization strings")
+    else:
+        print("Warning: localization.json not found, using default names")
+        print("To generate localization, run:")
+        print("  plutil -convert json -o - /System/.../DefaultShortcutsTable.loctable | jq '.en' > data/localization.json")
+
     # Parse the plist XML
     with open(xml_path, 'rb') as f:
         data = plistlib.load(f)
@@ -198,17 +309,23 @@ def main():
     # Parse all categories
     categories = {}
     for category in data:
-        parsed = parse_category(category)
+        parsed = parse_category(category, localization)
         if parsed:
             nix_name = parsed.get('nixName', '')
             if nix_name:
                 categories[nix_name] = parsed
 
+    # Add dynamically-created desktop switching shortcuts
+    add_desktop_switching_shortcuts(categories, localization)
+    print("Added desktop switching shortcuts (118-133) - dynamically created by system")
+
     # Build the output structure
     output = {
         'version': 'macOS 15.x (Sequoia)',
         'generatedFrom': 'DefaultShortcutsTable.xml',
+        'localized': bool(localization),
         'note': 'Generated by parse-shortcuts.py. Do not edit manually.',
+        'dynamicShortcuts': 'Desktop switching shortcuts (118-133) are dynamically created by macOS and not present in system files. They are included based on empirical evidence.',
         'categories': categories,
     }
 
