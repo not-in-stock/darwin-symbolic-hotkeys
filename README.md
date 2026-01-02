@@ -26,7 +26,7 @@ system.defaults.CustomUserPreferences = {
 darwin.symbolicHotkeys = {
   missionControl.missionControlGroup.moveLeftASpace = {
     enable = true;
-  shortcut = "ctrl+left";
+    shortcut = "ctrl+left";
   };
 };
 ```
