@@ -45,5 +45,21 @@
           shortcutData = builtins.fromJSON (builtins.readFile ./data/symbolic-hotkeys.json);
         };
       };
+
+      # Documentation packages
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          docs = import ./doc {
+            inherit pkgs;
+            revision = self.rev or self.dirtyRev or "main";
+          };
+        in
+        {
+          docs = docs.htmlDocs;
+          options-json = docs.optionsJSON;
+        }
+      );
     };
 }
