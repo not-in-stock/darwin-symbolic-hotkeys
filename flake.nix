@@ -8,14 +8,21 @@
   outputs =
     { self, nixpkgs }:
     let
-      # Supported systems
-      systems = [
+      # Supported systems for the module (darwin only)
+      darwinSystems = [
         "aarch64-darwin"
         "x86_64-darwin"
       ];
 
+      # Systems that can build documentation (includes Linux for CI)
+      docsSystems = darwinSystems ++ [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+
       # Helper to generate per-system outputs
-      forAllSystems = nixpkgs.lib.genAttrs systems;
+      forAllSystems = nixpkgs.lib.genAttrs darwinSystems;
+      forDocsSystems = nixpkgs.lib.genAttrs docsSystems;
     in
     {
       # The main darwin module
@@ -46,8 +53,8 @@
         };
       };
 
-      # Documentation packages
-      packages = forAllSystems (
+      # Documentation packages (available on all systems including Linux for CI)
+      packages = forDocsSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
