@@ -127,7 +127,7 @@ let
             shortcutInfo = categoryData.shortcuts.${shortcutName} or null;
           in
           if shortcutInfo != null then shortcutToHotkey shortcutInfo shortcutCfg else null
-        ) (lib.filterAttrs (n: v: categoryData.shortcuts ? ${n}) categoryCfg)
+        ) (lib.filterAttrs (n: v: (categoryData.shortcuts or {}) ? ${n}) categoryCfg)
       );
 
       # Shortcuts in subgroups
