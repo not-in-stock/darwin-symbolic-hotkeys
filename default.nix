@@ -103,17 +103,14 @@ let
   # Convert a shortcut config to AppleSymbolicHotKeys format
   shortcutToHotkey =
     shortcutInfo: shortcutCfg:
-    if !shortcutCfg.enable then
-      null
-    else
-      {
-        name = toString shortcutInfo.id;
-        value = shortcuts.mkShortcutFromConfig shortcutCfg {
-          key = shortcutInfo.defaultKey or 65535;
-          modifier = shortcutInfo.defaultModifier or 0;
-          charKey = shortcutInfo.defaultCharKey or null;
-        };
+    {
+      name = toString shortcutInfo.id;
+      value = shortcuts.mkShortcutFromConfig shortcutCfg {
+        key = shortcutInfo.defaultKey or 65535;
+        modifier = shortcutInfo.defaultModifier or 0;
+        charKey = shortcutInfo.defaultCharKey or null;
       };
+    };
 
   # Collect all enabled shortcuts from a category config
   collectCategoryHotkeys =

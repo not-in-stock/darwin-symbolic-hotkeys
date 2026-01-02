@@ -61,11 +61,11 @@ in
     };
   };
 
-  # Function to create a disabled shortcut (no parameters)
+  # Function to create a disabled shortcut
   mkDisabledShortcut = {
     enabled = false;
     value = {
-      parameters = [ ];
+      parameters = [ 65535 65535 0 ];
       type = "standard";
     };
   };
@@ -79,7 +79,7 @@ in
       {
         enabled = false;
         value = {
-          parameters = [ ];
+          parameters = [ 65535 65535 0 ];
           type = "standard";
         };
       }
